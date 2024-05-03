@@ -1,0 +1,148 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\title{Optimal Harvesting of Fish in the Sea}
+\author{Joseph Krueger}
+\date{May 3, 2024}
+\author{MATH:4820 Optimization Techniques}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+Fish in the sea can be considered a renewable resource, due to the natural replacement of caught fish by their offspring. However, if the rate of harvest of these fish is too high, they can die off. Thus, there must be an optimal way to harvest this resource, maximizing profit while also keeping the population of fish in check. This can be modelled as an optimal control problem.
+
+\section{Formulation}
+This problem can be formulated in terms of two state variables: fish population $f(t)$ and the company’s money in the bank $m(t)$, with an unknown control: harvest effort $u(t)$. This is modelled as follows:
+\begin{equation}
+\begin{align}
+\frac{df}{dt}=\alpha f(f_{max}-f)-\beta f u \\
+\frac{dm}{dt}=\delta m +\beta f u
+\end{align}
+\end{equation}
+With the conditions $f(0)=f_{max}=1$ and $m(0)=0$. This gives us the following optimal control problem:
+\begin{equation}
+    \min_{u}g(\textbf{x}(t)) \quad \text{subject to} \quad \frac{d\textbf{x}}{dt}=\textbf{F}(\textbf{x}(t),\textbf{u}(t)) \\
+    \quad \text{where} \quad \textbf{u}(t) \in U \quad \forall t
+\end{equation}
+We can first begin minimizing $g(\textbf{x}(T))$ by discretizing (1) using Euler’s method:
+\begin{equation}
+    \textbf{x}_{k+1}=\textbf{x}_{k}+h\textbf{F}(\textbf{x}_{k}, \textbf{u}_{k}), \quad \text{with} \; \textbf{x}_{0} \; \text{given}
+\end{equation}
+This allows us to minimize $g(\textbf{x}_N)$ where $T=Nh$. Because each equation in (2) is a constraint, we can set up the following Lagrangian:
+\begin{equation}
+    L(\textbf{x}, \textbf{u}, \tetxbf{\lambda})=g(\textbf{x}_N)-\sum_{k}\lambda_{k}^T(\textbf{x}_{k} + h\textbf{F}(\textbf{x}_{k},\textbf{u}_{k}))
+\end{equation}
+Solving this Lagrangian gives us an equation for $\lambda_{k}$:
+\begin{equation}
+    \lambda_{k-1}=\lambda_{k}+h\nabla_{x}\textbf{F}(\textbf{x}_{k},\tetxbf{u}_{k})^T \lambda_{k} \quad \text{for} \; k = N-1,N-2,...,1
+\end{equation}
+After formulating the $x$ and $\lambda$ vectors, we can set up a steepest descent algorithm to find the minimizer. First, we can set a search direction $\textbf{d} = [\textbf{d}_{0}^T, \textbf{d}_{1}^T, ..., \textbf{d}_{N-1}^T]^T$ with a new control $\textbf{u}^+(\alpha)=P_{\mathcal{U}}(\textbf{u} + \alpha \textbf{d})$ where $\mathcal{U} = U \times U \times ... \times U$. Because we are mapping the orthogonal projection of $\textbf{z}$ where $\textbf{z} = \textbf{u} + \alpha \textbf{d}$ onto $U$, it follows that this also gives us the nearest point in $\mathcal{U}$ to $\textbf{z}$ by the cartesian product.
+Additionally, beacuse $\mathcal{U}$ is a convex set, We know that by the separating hyperplane theorem, any point $\textbf{u}$ where $Proj_{\mathcal{U}}(\textbf{u} + \alpha \textbf{d}) = \textbf{u}$ for small $\alpha > 0$ has no descent direction, as our separating hyperplane is the boundary of $\mathcal{U}$, and we are not able to descend any further into the set beyond that boundary.
+
+\section{Algorithms}
+The algorithm for computing the optimal harvesting effort, $u(t)$ comes in three parts: The forward pass, the backward pass, and the descent. I will outline the pseudocode for these three parts, and also include pseudocode for the gradient descent step and the backtracking line search algorithm.
+
+\begin{algorithm}
+\caption{Forward Pass for calculating \textbf{x}_N}\label{alg:cap}
+\begin{algorithmic}
+\Require{Given $tx, u$}
+\State $N \gets length(u)$
+\State $n \gets length(x)$
+\State $xs[:,1] \gets x$
+\For{$i \gets 0:N-1$}\
+    \State $xs[:, i+2] \gets xs[:, i+1] + hF(xs[:,i+1],u[:i+1])$
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+This algorithm makes a forward pass through the $\textbf{x}$ vector, building it up from $\textbf{x}_{0}$ and proceeding forwards. This is based on equation (3).
+\newpage
+
+\begin{algorithm}
+\caption{Backward Pass for calculating \textbf{\lambda}_0}\label{alg:cap}
+\begin{algorithmic}
+\Require{Given $\lambda_{N}, xv, u$}
+\State $N \gets length(u)$
+\State $n \gets length(x)$
+\State $\lambda \gets initialized \;to\; 0s$
+\State $\lambda [:,N] \gets \lambda_{N}$
+\For{$i \gets N-2:0$}\
+    \State $\lambda [:, i+1] \gets \lambda [:, i+2] + h\nabla_{x} F(xs[:,i+1],u[:i+1])^T \lambda [:, i+2]$
+\EndFor
+\end{algorithmic}
+
+\end{algorithm}
+This algorithm makes a backward pass through the $\lambda$ vector, building it up starting with $\lambda_{N}$ and proceeding backwards. This is based on equation (5).
+\begin{algorithm}
+\caption{Gradient Descent of \textbf{u}}\label{alg:cap}
+\begin{algorithmic}
+\Require{Given $u, s, \text{objective function}\; G$}
+\State $u \gets Proj_{\mathcal(U)}(u-s\nabla G)$
+\end{algorithmic}
+\end{algorithm}
+The next algorithm computes the new value of $\textbf{u}$ by decreasing its value in the direction of the steepest descent of the objective function, $G$.
+\begin{algorithm}
+\caption{Backtracking Line Search for optimal s}\label{alg:cap}
+\begin{algorithmic}
+\Require{Given $\text{objective function}\; G, x, s_{0}, u, c, tol$}
+\State $G_{old} \gets G$
+\While{$G > G_{old} + c \nabla G^T (u_{new}-u)\; \text{and} \; s > 10^{-12}s_{0}$}
+    \State $s \gets s/2$
+    \State $u_{new} \gets \text{GradientDescent}(u,s,\nabla G)$
+    \State $G_{old} \gets G$
+    \State $G \gets G(x,u_new)$
+\EndWhile
+\end{algorithmic}
+\end{algorithm}
+
+This algorithm performs a backtracking line search to compute the optimal step length, $s$, used for gradient descent.
+\begin{algorithm}
+\caption{Optimizing Function}\label{alg:cap}
+\begin{algorithmic}
+\Require{$\text{Given} \;t_{0}, x, u, N, s, \text{objective function}\; G, iters, c, tol$}
+\State $xs \gets Forward(x,u)$
+\State $\lambda_{N} \gets \nabla G(xs_{N})$
+\State $u \gets \text{initialized to all $0.5$}$
+\State $G \gets G(x,u)$
+\State $\nabla G \gets \nabla G(x,u)$
+\State $u_{optimal} \gets u$
+\State $\text{iter} \gets 0$
+\While{$\text{iter} <\text{iters}$}
+    \State $u_{new} \gets \text{GradientDescent}(u,s,\nabla G)$
+    \State $u_{new} \gets LineSearch(G, x, s, u_{new}, c, tol)$
+    \State $\nabla G \gets \nabla G(x,u_{new})$
+    \State $u \gets u_{new}$
+\EndWhile
+\State Return $u_{new}$
+\end{algorithmic}
+\end{algorithm}
+\newpage
+This algorithm combines the forward pass, backward pass, line search, and gradient descent methods to compute the optimal harvest effort, $u^*(t)$.
+
+\section{Correctness}
+Finite Difference Approximations were used to verify the correctness of gradient calculations and the Jacobian matrix of $\textbf{F}$:
+\begin{equation}
+    \frac{\textbf{F}(\textbf{x}, \textbf{u}+d\textbf{u})-\textbf{F}(\textbf{x}, \textbf{u}-d\textbf{u})-2\nabla_{u}F(\textbf{x},\textbf{u})}{||d\textbf{u}||^2}
+\end{equation}
+Performing this calculation with inputs $\textbf{x}=[0.9,0.0],\textbf{u}=[0.0, 0.0, ..., 0.0],d\textbf{u}=[0.0007, 0.0007, ..., 0.0007]$ yields $[-2.168404344971009\times10^{-19}, 0.0] \approx [0.0,0.0]$, which proves that our derivation of $\nabla_{u}F$ is correct. Furthermore, performing the similar calculation:
+\begin{equation}
+    \frac{\textbf{F}(\textbf{x}-d\textbf{x}, \textbf{u})-\textbf{F}(\textbf{x}-d\textbf{x}, \textbf{u})-2\nabla_{u}F(\textbf{x},\textbf{u})}{||d\textbf{x}||^2}
+\end{equation}
+with $d\textbf{x}=[0.0007, -0.0007]$ yields $[-2.23833458596189\times10^{-15}, 0.0] \approx [0.0,0.0]$. Additionally, the objective function, $g$, and its derivatives $\nabla g$ were tested with the following:
+\begin{equation}
+    \frac{g(\textbf{x}+d\textbf{x}, \textbf{u})-g(\textbf{x}-d\textbf{x}, \textbf{u})-2\nabla_{u}g(\textbf{x})^T d\textbf{x}}{||d\textbf{x}||^2}
+\end{equation}
+which yielded 0.0 with the previously supplied initial values. Thus, we can be confident in the calculation of the various gradients present in the problem. We could determine if a computed result is a Karush-Kuhn-Tucker (KKT) point by verifying that for each corresponding $\lambda_{k}$ and $\textbf{u}_{k}$, $\lambda_{K} \textbf{u}_{k}=0$ under some constraint qualification (the LICQ, for example).
+\section{Results}
+The algorithm(s) described above seem to give good results, and are able to model the dynamic system over a given timeframe. With the initial conditions of: \\
+$\textbf{x}=[0.9; 0.0],\\t_{0}=0.0,\\N=200,\\\textbf{u}=[0.0, 0.0, ..., 0.0], \\T=20, \\\alpha=0.1,\\\delta=0.05,\\ \beta=1.0,\\ f_{max}=1.0\\$ we get convergence in 62 iterations, which only takes a few seconds on my MacBook to compute.
+\end{document}
+
+@show (g(xv+dxv)-g(xv-dxv)-2*dot(dg(xv),dxv))/norm(dxv)
+Describe the performance of the algorithm both in terms of the accuracy of the result(s), the number of iterations of your method, and the computer time spent in the
+calculations. Comment on how any poor performance you identify could be improved
+by either improving the algorithm or by improving the implementation. Does the algorithm fail completely? If so, why? And what could be done to remedy the problem?
